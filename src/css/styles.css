@@ -1,0 +1,57 @@
+/* Navbar */
+.navbar {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Main container */
+.container {
+    max-width: 900px;
+}
+
+/* Cards */
+.card {
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    /* transform: translateY(-5px); */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Buttons */
+.btn-primary {
+    font-weight: bold;
+    transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+}
+
+.btn-primary:hover {
+    transform: scale(1.05);
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+    .container {
+        max-width: 100%;
+        padding: 0 15px;
+    }
+
+    .card {
+        margin-bottom: 15px;
+    }
+}
+
+.scrollable-box {
+    max-height: 400px; /* Limits height to avoid excessive content overflow */
+    overflow-y: auto; /* Enables vertical scrolling when content overflows */
+    border: 1px solid #6c757d; /* Uses Bootstrap's gray border */
+    padding: 15px;
+    border-radius: 5px;
+    background-color: #212529; /* Bootstrap dark background for consistency */
+    word-wrap: break-word; /* Ensures long text wraps properly */
+}
+
+.form-select {
+    background-image: url(../img/chevron-down.svg);
+}

@@ -1,0 +1,942 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  ECSClusterName:
+    Type: String
+    Description: Name of the ECS Cluster for SAM 2.0
+  VPCID:
+    Type: String
+    Description: ID of the VPC in which the ECS is to be launched
+  ALBName:
+    Type: String
+    Description: Name of the ALB facing the SAM 2.0 application
+  ALBCertificateID:
+    Type: String
+    Description: ID of the ACM Certificate used by the Application Load Balancer
+  PresentationSubnetIdEuCe1a:
+    Type: String
+    Description: ID of the Presentation Subnet in eu-central-1a
+  PresentationSubnetIdEuCe1b:
+    Type: String
+    Description: ID of the Presentation Subnet in eu-central-1b
+  ApplicationSubnetIdEuCe1a:
+    Type: String
+    Description: ID of the Application Subnet in eu-central-1a
+  ApplicationSubnetIdEuCe1b:
+    Type: String
+    Description: ID of the Application Subnet in eu-central-1b
+  DatabaseSubnetIdEuCe1a:
+    Type: String
+    Description: ID of the Private Subnet in eu-central-1a in which the databse is launched
+  DatabaseSubnetIdEuCe1b:
+    Type: String
+    Description: ID of the Private Subnet in eu-central-1b in which the databse is launched
+  DatabaseSubnetIdEuCe1c:
+    Type: String
+    Description: ID of the Private Subnet in eu-central-1c in which the databse is launched
+  TargetGroupECSGuiName:
+    Type: String
+    Description: Name of the GUI Target Group
+  TargetGroupECSModelName:
+    Type: String
+    Description: Name of the Model Target Group
+  GUIDockerImage:
+    Type: String
+    Description: Docker image to use for the GUI
+  GUIDockerImageVersion:
+    Type: String
+    Description: Veriosn of the Docker image to use for the GUI
+  ModelDockerImage:
+    Type: String
+    Description: Docker image to use for the Model
+  ModelDockerImageVersion:
+    Type: String
+    Description: Version of the Docker image to use for the Model
+  CIAMDPSDockerImage:
+    Type: String
+    Description: Docker image to use for the CIAM DPS
+  CIAMDPSDockerImageVersion:
+    Type: String
+    Description: Version of the Docker image to use for the CIAM DPS
+  EmailDockerImage:
+    Type: String
+    Description: Docker image to use for the Email Service
+  EmailDockerImageVersion:
+    Type: String
+    Description: Version of the Docker image to use for the Email Service
+  ModelEmailCCParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value EMAIL_CC to be passed to the Model container
+  ModelCiamReplyUrlParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value CIAM_REPLY_URL to be passed to the Model container
+  ModelManualReplyUrlParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value MANUAL_REPLY_URL to be passed to the Model container
+  ModelProfileParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value PROFILE to be passed to the Model container
+  ECSServiceDesiredCount:
+    Type: Number
+    Description: Number of desired ECS Service
+  CloudwatchLogGroupNameGUI:
+    Type: String
+    Description: CW Log group name for the GUI ECS tasks
+  CloudwatchLogGroupNameModel:
+    Type: String
+    Description: CW Log group name for the Model ECS tasks
+  CloudwatchLogGroupNameCIAMDPS:
+    Type: String
+    Description: CW Log group name for the CIAM DPS ECS tasks
+  CloudwatchLogGroupNameEmail:
+    Type: String
+    Description: CW Log group name for the Email Service ECS tasks
+  TaskExecutionPolicyName:
+    Type: String
+    Description: The name of the policy attached to the Task Execution Role
+  TaskExecutionRoleName:
+    Type: String
+    Description: The name of the Task Execution Role
+  LDAPUrl:
+    Type: String
+    Description: URL of the LDAP group
+  LDAPUsernameParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the Username of the LDAP group
+  LDAPPasswordParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the Password of the LDAP group
+  TerminalsUserParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the Username of the Terminals SFTP-server
+  TerminalsPrivateKeyParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the Password of the Terminals SFTP-server
+  MyPassClientIdParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the OAuth Client Id to connect to MyPass via TARDIS
+  MyPassClientSecretParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the OAuth Client Secret to connect to MyPass via TARDIS
+  SamModelWalletParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the key to sign the PKPasses
+  VerificationTokenSecretKeyParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of secret key for user password reset verification token generation/verification
+  PkPassAuthTokenParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the authentication token for PKPass generation
+  PkPassTeamIdParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the team id for PKPass generation
+  CiamDpsPasswordParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the Basic auth password for the connection with ciam-dps service
+  ASGMinSize:
+    Type: String
+    Description: Minimum number of EC2 instances required for the application
+  ASGMaxSize:
+    Type: String
+    Description: Maximum number of EC2 instances required for the application
+  ASGDesiredCapacity:
+    Type: String
+    Description: Desired number of EC2 instances required for the application
+  AMIID:
+    Description: The ID of the image created by DevSecOps team
+    Type: AWS::EC2::Image::Id
+  InstanceTypeECS:
+    Type: String
+    Description: The instance type used by the ECS SAM Cluster
+  ModelEmailPort:
+    Type: Number
+    Description: The port on which to reach the email-service
+  KMSID:
+    Type: String
+    Description: Key ID used to decrypt secrets from SSM
+  Secret:
+    Type: String
+    Description: Creds for mtr encrypted by ENV specific key
+  SamDBMasterUsernameParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the Master Username for the RDS Instance
+  SamDBMasterPasswordParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the Master Password for the RDS Instance
+  SamDBCIAMUsernameParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the CIAM Username for the RDS Instance
+  SamDBCIAMPasswordParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the CIAM Password for the RDS Instance
+  SamDBSAMUsernameParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the SAM Username for the RDS Instance
+  SamDBSAMPasswordParameterStore:
+    Type: String
+    Description: Name of the variable in the AWS Parameter Store holding the value of the SAM Password for the RDS Instance
+  DBName:
+    Type: String
+    Description: Default to postgres if not specified
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters.
+  MyPass2URL:
+    Type: String
+    Description: MyPass2 endpoint
+  MyPass2TokenURL:
+    Type: String
+    Description: URL to get access token for calls to MyPass through Tardis
+  DBInstanceEndpoint:
+    Type: String
+    Description: DB Instance name in case not standart needed.
+  AAURL:
+    Type: String
+    Description: Endpoint for calling Active Access Provider service by Model
+  SpacegateUrl:
+    Type: String
+    Description: URL of the Spacegate token issuer
+  PkPassDownloadUrl:
+    Type: String
+    Description: Public URL of the SAM-Communication project's pkpass download endpoint
+  AllowedClientIds:
+    Type: String
+    Description: List of client ids allowed to call specific SAM URLs from Tardis
+  DeployId:
+    Type: String
+    Description: Unique ID of the deployment used by model to update DB only once
+  CreationLambdaArn:
+    Type: String
+    Description: ARN of the lambda function to create a terminal in AWS Middleware application
+  InfoLambdaArn:
+    Type: String
+    Description: ARN of the lambda function to get provision info about a terminal in AWS Middleware application
+  EnvType:
+    Type: String
+    Description : The deployment environment
+    AllowedValues:
+      - prod
+      - test2
+      - dev2
+  SsoClientId:
+    Type: String
+  SsoTenantId:
+    Type: String
+
+Resources:
+
+  # ECS Cluster for SAM
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Join ['', [!Ref 'ECSClusterName', '-', !Ref 'EnvType']]
+      ClusterSettings:
+      - Name: containerInsights
+        Value: enabled
+      Tags:
+      - Key: environment
+        Value: !Ref 'EnvType'
+
+  # ECS SG
+  SecurityGroupECS:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Join ['', ['ECS Security Group for SAM 2.0', '-', !Ref 'EnvType']]
+      VpcId: !Ref 'VPCID'
+      Tags:
+      - Key: Name
+        Value: !Join ['', ['ECS Security Group for SAM 2.0', '-', !Ref 'EnvType']]
+      - Key: dtit:sec:NetworkLayer
+        Value: Application
+      - Key: dtit:sec:InfoSecClass
+        Value: Internal
+
+  # ALB SG
+  SecurityGroupALB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Join ['', ['ALB Security Group for SAM 2.0', '-', !Ref 'EnvType']]
+      VpcId: !Ref 'VPCID'
+      Tags:
+      - Key: Name
+        Value: !Join ['', ['ALB Security Group for SAM 2.0', '-', !Ref 'EnvType']]
+      - Key: dtit:sec:NetworkLayer
+        Value: Web
+      - Key: dtit:sec:InfoSecClass
+        Value: Internal
+
+  # ALB SG allowing it to be reached on tcp:443 from the DTAG CIDR 100.64.0.0/10
+  SecurityGroupALBHttpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupALB'
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 100.64.0.0/10
+
+  # ALB SG allowing it to be reached on tcp:443 from the DTAG CIDR 10.0.0.0/8
+  SecurityGroupALBHttpIngress2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupALB'
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 10.0.0.0/8
+
+  # ALB SG allowing it to be reached on tcp:8025 where the mock smtp gui located from the DTAG CIDR 100.64.0.0/10
+  SecurityGroupSMTPMockIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupALB'
+      IpProtocol: tcp
+      FromPort: 8025
+      ToPort: 8025
+      CidrIp: 100.64.0.0/10
+
+  # ALB SG allowing it to be reached on tcp:8025 where the mock smtp gui located from the DTAG CIDR 10.0.0.0/8
+  SecurityGroupSMTPMockIngress2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupALB'
+      IpProtocol: tcp
+      FromPort: 8025
+      ToPort: 8025
+      CidrIp: 10.0.0.0/8
+
+  # Allow ALB to reach the Target Group on tcp:8080 (GUI)
+  SecurityGroupHTTPIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupECS'
+      SourceSecurityGroupId: !Ref 'SecurityGroupALB'
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8080
+
+  # Allow ALB to reach the Target Group on tcp:2556 (Model)
+  SecurityGroupHTTPIngressModel:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupECS'
+      SourceSecurityGroupId: !Ref 'SecurityGroupALB'
+      IpProtocol: tcp
+      FromPort: 2556
+      ToPort: 2556
+
+  # SG applied to the DB
+  SecurityGroupDB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Join ['', ['DB Security Group for SAM 2.0', '-', !Ref 'EnvType']]
+      VpcId: !Ref 'VPCID'
+      Tags:
+      - Key: Name
+        Value: !Join ['', ['DB Security Group for SAM 2.0', '-', !Ref 'EnvType']]
+      - Key: dtit:sec:NetworkLayer
+        Value: database
+      - Key: dtit:sec:InfoSecClass
+        Value: Internal
+
+  # Only allow ECS Task to reach the DB
+  SecurityGroupDBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupDB'
+      SourceSecurityGroupId: !Ref 'SecurityGroupECS'
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+
+  # Allow ALB ports
+  SecurityGroupALBports:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroupECS'
+      SourceSecurityGroupId: !Ref 'SecurityGroupALB'
+      IpProtocol: tcp
+      FromPort: 10240
+      ToPort: 61000
+
+  # CW log groups for the GUI ECS
+  CloudwatchLogsGroupECSGUI:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [!Ref 'CloudwatchLogGroupNameGUI', '-', !Ref 'EnvType']]
+
+  # CW log groups for the Model ECS
+  CloudwatchLogsGroupECSModel:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [!Ref 'CloudwatchLogGroupNameModel', '-', !Ref 'EnvType']]
+
+  # CW log groups for the CIAM DPS ECS
+  CloudwatchLogsGroupECSCIAMDPS:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [!Ref 'CloudwatchLogGroupNameCIAMDPS', '-', !Ref 'EnvType']]
+
+  # CW log groups for the Email Service ECS
+  CloudwatchLogGroupECSEmail:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [!Ref 'CloudwatchLogGroupNameEmail', '-', !Ref 'EnvType']]
+
+  # Task Execution role - necessary to pull Docker images from ECR
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ['', [!Ref 'TaskExecutionRoleName', '-', !Ref 'EnvType', '-', !Ref AWS::Region]]
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs-tasks.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: !Join ['', [!Ref 'TaskExecutionPolicyName', '-', !Ref 'EnvType', '-', !Ref AWS::Region]]
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ['ssm:GetParameters', 'kms:Decrypt', 'secretsmanager:GetSecretValue']
+            Resource: [
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBMasterUsernameParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBMasterPasswordParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBCIAMUsernameParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBCIAMPasswordParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBSAMUsernameParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBSAMPasswordParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelEmailCCParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelCiamReplyUrlParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelManualReplyUrlParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelProfileParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'LDAPUsernameParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'LDAPPasswordParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'TerminalsUserParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'TerminalsPrivateKeyParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:kms:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':key/', !Ref 'KMSID']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'MyPassClientIdParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'MyPassClientSecretParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamModelWalletParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'VerificationTokenSecretKeyParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'PkPassAuthTokenParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'PkPassTeamIdParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'CiamDpsPasswordParameterStore', '_', !Ref 'EnvType']],
+              !Join ['', ['arn:aws:secretsmanager:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':', !Ref 'Secret']],
+              !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', 'mock_smtp', '_', !Ref 'EnvType']]
+            ]
+      ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy']
+
+  # ECS Task Definition
+  TaskDefinitionECS:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Join ['', ['ecs-sam-', !Ref 'EnvType']]
+      ExecutionRoleArn: !GetAtt ['TaskExecutionRole', 'Arn']
+      Volumes:
+      - Name: "ecs-gui-apache2-logs"
+      - Name: "ecs-gui-tmp"
+      - Name: "ecs-model-var-sam"
+      - Name: "ecs-model-tmp"
+      - Name: "ecs-ciam-var-sam"
+      - Name: "ecs-ciam-tmp"
+      - Name: "ecs-mailservice-tmp"
+      ContainerDefinitions:
+      - Name: ecs-gui
+        Image: !Join ['', [!Ref 'GUIDockerImage', ':', !Ref 'GUIDockerImageVersion']]
+        RepositoryCredentials:
+          CredentialsParameter: !Join ['', ['arn:aws:secretsmanager:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':', !Ref 'Secret']]
+        MemoryReservation: 300
+        Ulimits:
+        - HardLimit: 2048
+          Name: nofile 
+          SoftLimit: 1024
+        - HardLimit: 4096
+          Name: nproc
+          SoftLimit: 2048
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroupECSGUI'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: ecs-gui
+        PortMappings:
+        - ContainerPort: 8080
+        ReadonlyRootFilesystem: true
+        MountPoints:
+        - SourceVolume: "ecs-gui-apache2-logs"
+          ContainerPath: "/usr/local/apache2/logs"
+          ReadOnly: false
+        - SourceVolume: "ecs-gui-tmp"
+          ContainerPath: "/tmp"
+          ReadOnly: false
+      - Name: ecs-model
+        DependsOn:
+          - Condition: START
+            ContainerName: ecs-ciam-dps
+        Image: !Join ['', [!Ref 'ModelDockerImage', ':', !Ref 'ModelDockerImageVersion']]
+        RepositoryCredentials:
+          CredentialsParameter: !Join ['', ['arn:aws:secretsmanager:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':', !Ref 'Secret']]
+        MemoryReservation: 3000
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroupECSModel'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: ecs-model
+        PortMappings:
+        - ContainerPort: 2556
+        Links: ['ecs-mail-service', 'ecs-ciam-dps']
+        Secrets:
+          - Name: DB_CIAM_USERNAME
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBCIAMUsernameParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_SAM_USERNAME
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBSAMUsernameParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_CIAM_PASSWORD
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBCIAMPasswordParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_SAM_PASSWORD
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBSAMPasswordParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_ADMIN_USERNAME
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBMasterUsernameParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_ADMIN_PASSWORD
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBMasterPasswordParameterStore', '_', !Ref 'EnvType']]
+          - Name: EMAIL_CC
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelEmailCCParameterStore', '_', !Ref 'EnvType']]
+          - Name: CIAM_REPLY_URL
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelCiamReplyUrlParameterStore', '_', !Ref 'EnvType']]
+          - Name: MANUAL_REPLY_URL
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelManualReplyUrlParameterStore', '_', !Ref 'EnvType']]
+          - Name: PROFILE
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'ModelProfileParameterStore', '_', !Ref 'EnvType']]
+          - Name: TERMINALS_USER
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'TerminalsUserParameterStore', '_', !Ref 'EnvType']]
+          - Name: TERMINALS_PRIVATE_KEY
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'TerminalsPrivateKeyParameterStore', '_', !Ref 'EnvType']]
+          - Name: MYPASS2_CLIENT_ID
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'MyPassClientIdParameterStore', '_', !Ref 'EnvType']]
+          - Name: MYPASS2_CLIENT_SECRET
+            ValueFrom: !Join [ '', [ 'arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'MyPassClientSecretParameterStore', '_', !Ref 'EnvType' ] ]
+          - Name: WALLET_PW
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamModelWalletParameterStore', '_', !Ref 'EnvType']]
+          - Name: VERIFICATION_TOKEN_SECRET_KEY
+            ValueFrom: !Join [ '', [ 'arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'VerificationTokenSecretKeyParameterStore', '_', !Ref 'EnvType' ] ]
+          - Name: PKPASS_AUTH_TOKEN
+            ValueFrom: !Join [ '', [ 'arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'PkPassAuthTokenParameterStore', '_', !Ref 'EnvType' ] ]
+          - Name: PKPASS_TEAM_ID
+            ValueFrom: !Join [ '', [ 'arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'PkPassTeamIdParameterStore', '_', !Ref 'EnvType' ] ]
+          - Name: CIAM_DPS_PASSWORD
+            ValueFrom: !Join [ '', [ 'arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'CiamDpsPasswordParameterStore', '_', !Ref 'EnvType' ] ]
+        Environment:
+          - Name: DB_HOST
+            Value: !Ref "DBInstanceEndpoint"
+          - Name: DB_PORT
+            Value: '5432'
+          - Name: DB_ADMIN_SCHEMA
+            Value: !Ref 'DBName'
+          - Name: DB_CIAM_SCHEMA
+            Value: 'ciam'
+          - Name: DB_SAM_SCHEMA
+            Value: 'sam'
+          - Name: EMAIL_HOST
+            Value: 'ecs-mail-service'
+          - Name: EMAIL_PORT
+            Value: !Ref 'ModelEmailPort'
+          - Name: CIAM_DPS_HOST
+            Value: 'ecs-ciam-dps'
+          - Name: CIAM_DPS_PORT
+            Value: '2570'
+          - Name: TERMINALS_URL
+            Value: '10.14.70.132'
+          - Name: TERMINALS_PORT
+            Value: '22'
+          - Name: TERMINALS_DIR
+            Value: '/IN'
+          - Name: MYPASS2_URL
+            Value: !Ref 'MyPass2URL'
+          - Name: MYPASS2_TOKEN_URL
+            Value: !Ref 'MyPass2TokenURL'
+          - Name: AA_URL
+            Value: !Ref 'AAURL'
+          - Name: SPACEGATE_URL
+            Value: !Ref 'SpacegateUrl'
+          - Name: PKPASS_DOWNLOAD_URL
+            Value: !Ref 'PkPassDownloadUrl'
+          - Name: ALLOWED_CLIENTIDS
+            Value: !Ref 'AllowedClientIds'
+          - Name: DEPLOY_ID   
+            Value: !Ref 'DeployId'
+          - Name: CREATION_LAMBDA_ARN
+            Value: !Ref 'CreationLambdaArn'
+          - Name: INFO_LAMBDA_ARN
+            Value: !Ref 'InfoLambdaArn'
+          - Name: SSO_CLIENT_ID
+            Value: !Ref 'SsoClientId'
+          - Name: SSO_TENANT_ID
+            Value: !Ref 'SsoTenantId'
+        ReadonlyRootFilesystem: true
+        MountPoints:
+        - SourceVolume: "ecs-model-var-sam"
+          ContainerPath: "/var/sam"
+          ReadOnly: false
+        - SourceVolume: "ecs-model-tmp"
+          ContainerPath: "/tmp"
+          ReadOnly: false
+      - Name: ecs-ciam-dps
+        Image: !Join ['', [!Ref 'CIAMDPSDockerImage', ':', !Ref 'CIAMDPSDockerImageVersion']]
+        RepositoryCredentials:
+          CredentialsParameter: !Join ['', ['arn:aws:secretsmanager:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':', !Ref 'Secret']]
+        MemoryReservation: 1000
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroupECSCIAMDPS'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: ecs-ciam-dps
+        PortMappings:
+        - ContainerPort: 2570
+        Secrets:
+          - Name: DB_ADMIN_USERNAME
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBMasterUsernameParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_ADMIN_PASSWORD
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBMasterPasswordParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_CIAM_USERNAME
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBCIAMUsernameParameterStore', '_', !Ref 'EnvType']]
+          - Name: DB_CIAM_PASSWORD
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'SamDBCIAMPasswordParameterStore', '_', !Ref 'EnvType']]
+          - Name: LDAP_USERNAME
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'LDAPUsernameParameterStore', '_', !Ref 'EnvType']]
+          - Name: LDAP_PASSWORD
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', !Ref 'LDAPPasswordParameterStore', '_', !Ref 'EnvType']]
+        Environment:
+          - Name: DB_HOST
+            Value: !Ref "DBInstanceEndpoint" #AWS-dev MASTER DB endpoint
+            #Value: !GetAtt [PostgreSQLDb, Endpoint.Address]
+          - Name: DB_PORT
+            Value: '5432'
+          - Name: DB_ADMIN_SCHEMA
+            Value: !Ref 'DBName'
+          - Name: DB_CIAM_SCHEMA
+            Value: 'ciam'
+          - Name: LDAP_URLS
+            Value: !Ref 'LDAPUrl'
+        ReadonlyRootFilesystem: true
+        MountPoints:
+        - SourceVolume: "ecs-ciam-var-sam"
+          ContainerPath: "/var/sam"
+          ReadOnly: false
+        - SourceVolume: "ecs-ciam-tmp"
+          ContainerPath: "/tmp"
+          ReadOnly: false
+      - Name: ecs-mail-service
+        Image:  !Join ['', [!Ref 'EmailDockerImage', ':', !Ref 'EmailDockerImageVersion']]
+        RepositoryCredentials:
+          CredentialsParameter: !Join ['', ['arn:aws:secretsmanager:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':', !Ref 'Secret']]
+        MemoryReservation: 300
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogGroupECSEmail'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: ecs-email-service
+        PortMappings:
+        - ContainerPort: 2800
+        Secrets:
+          - Name: SMPT_HOST
+            ValueFrom: !Join ['', ['arn:aws:ssm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':parameter/', 'mock_smtp', '_', !Ref 'EnvType']]
+        Environment:
+#          - Name: SMPT_HOST
+#            Value: 'mailbb.telekom.de'
+          - Name: SMPT_PORT
+            Value: '1025'
+        ReadonlyRootFilesystem: true
+        MountPoints:
+        - SourceVolume: "ecs-mailservice-tmp"
+          ContainerPath: "/tmp"
+          ReadOnly: false
+
+  # Role attached to the EC2 Instance
+  IAMEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ec2.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: [
+              'ecs:CreateCluster', 'ecs:DeregisterContainerInstance', 'ecs:DiscoverPollEndpoint',
+              'ecs:Poll', 'ecs:RegisterContainerInstance', 'ecs:StartTelemetrySession',
+              'ecs:Submit*', 'logs:CreateLogStream', 'logs:PutLogEvents', 'cloudwatch:PutMetricData',
+              'cloudwatch:GetMetricStatistics', 'cloudwatch:ListMetrics', 'ec2:DescribeTags',
+              'ssmmessages:*', 'ssm:UpdateInstanceInformation', 'ec2messages:*', 'kms:ListKeys'
+            ]
+            Resource: '*'
+          - Effect: Allow
+            Action: [
+              'kms:Decrypt',
+              'kms:DescribeKey'
+            ]
+            Resource: 'arn:aws:kms:eu-central-1:976477818608:key/4175a4e6-e8d0-4324-88a4-fbd160eaae81'
+      - PolicyName: sam-exec-terminal-lambda
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: [
+              'lambda:InvokeFunction'
+            ]
+            Resource: 'arn:aws:lambda:eu-central-1:552428818064:function:DeviceManagementCreationLambdaFunction'
+          - Effect: Allow
+            Action: [
+              'lambda:InvokeFunction'
+            ]
+            Resource: 'arn:aws:lambda:eu-central-1:552428818064:function:DeviceManagementProvisionInfoLambdaFunction'
+
+  # Instance profile based on the IAMEC2Role
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [!Ref 'IAMEC2Role']
+
+  # GUI ECS Application Service
+  ECSApplicationService:
+    Type: AWS::ECS::Service
+    DependsOn: [ALBECSListener, AutoScalingGroupECS]
+    Properties:
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+      Cluster: !Ref 'ECSCluster'
+      DesiredCount: !Ref 'ECSServiceDesiredCount'
+      HealthCheckGracePeriodSeconds: 120
+      LoadBalancers:
+      - ContainerName: ecs-gui
+        ContainerPort: 8080
+        TargetGroupArn: !Ref 'TargetGroupECSGui'
+      - ContainerName: ecs-model
+        ContainerPort: 2556
+        TargetGroupArn: !Ref 'TargetGroupEcsModel'
+      TaskDefinition: !Ref 'TaskDefinitionECS'
+
+  # S3 Bucket that holds the ALB logs
+  S3ALB:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join ['', ['sam-', !Ref 'EnvType', '-alb-logs-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: dtit:sec:InfoSecClass
+          Value: internal
+
+  # Policy applied to the logs Bucket
+  S3ALBPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref 'S3ALB'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: arn:aws:iam::054676820928:root
+          Action: s3:PutObject
+          Resource: !Join ['', [!GetAtt [S3ALB, Arn], '/AWSLogs/', !Ref AWS::AccountId, '/*']]
+        - Effect: Allow
+          Principal:
+            Service: delivery.logs.amazonaws.com
+          Action: s3:PutObject
+          Resource: !Join ['', [!GetAtt [S3ALB, Arn], '/AWSLogs/', !Ref AWS::AccountId, '/*']]
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
+        - Effect: Allow
+          Principal:
+            Service: delivery.logs.amazonaws.com
+          Action: s3:GetBucketAcl
+          Resource: !Join ['', [!GetAtt [S3ALB, Arn]]]
+        - Sid: "Enforce Encrypted Transfer"
+          Effect: Deny
+          Principal: "*"
+          Action: s3:*
+          Resource: [
+            !Join [ '', [ !GetAtt [ S3ALB, Arn ] ] ],
+            !Join [ '', [ !GetAtt [ S3ALB, Arn ], '/*' ] ]
+          ]
+          Condition:
+            Bool:
+              aws:SecureTransport: false
+        - Sid: "Deny signed URLs"
+          Effect: Deny
+          Principal: "*"
+          Action: s3:*
+          Resource: [
+            !Join [ '', [ !GetAtt [ S3ALB, Arn ] ] ],
+            !Join [ '', [ !GetAtt [ S3ALB, Arn ], '/*' ] ]
+          ]
+          Condition:
+            StringNotEquals:
+              s3:authType: "REST-HEADER"
+
+  # ALB
+  ALBECS:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: S3ALBPolicy
+    Properties:
+      Tags:
+        - Key: dtit:sec:NetworkLayer
+          Value: web
+        - Key: dtit:sec:InfoSecClass
+          Value: Internal
+      Name: !Join ['', [!Ref 'ALBName', '-', !Ref 'EnvType']]
+      Scheme: internal
+      Subnets: [!Ref 'PresentationSubnetIdEuCe1a', !Ref 'PresentationSubnetIdEuCe1b']
+      SecurityGroups: [!Ref 'SecurityGroupALB']
+      LoadBalancerAttributes:
+        - Key: dummy2
+          Value: 'true'
+        - Key: access_logs.s3.enabled
+          Value: 'true'
+        - Key: access_logs.s3.bucket
+          Value: !Ref 'S3ALB'
+
+  # Target group of ECS task referenced by the Application ALB (ALBECS)
+  TargetGroupECSGui:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: ALBECS
+    Properties:
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 6
+      HealthyThresholdCount: 2
+      Name: !Join ['', [!Ref 'TargetGroupECSGuiName', '-', !Ref 'EnvType']]
+      Port: 8080
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref 'VPCID'
+
+  # Target group which targets HTTP:2556/api/* to the model container
+  TargetGroupEcsModel:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: ALBECS
+    Properties:
+      HealthCheckIntervalSeconds: 45
+      HealthCheckPath: /api/actuator/health
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 30
+      HealthyThresholdCount: 2
+      Name: !Join ['', [!Ref 'TargetGroupECSModelName', '-', !Ref 'EnvType']]
+      Matcher:
+        HttpCode: '200-499'
+      Port: 2556
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref 'VPCID'
+
+  # Default rules => Forward to sam-gui
+  ALBECSListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: [TaskExecutionRole, S3ALB, S3ALBPolicy]
+    Properties:
+      Certificates:
+      - CertificateArn: !Join ['', ['arn:aws:acm:', !Ref AWS::Region, ':', !Ref AWS::AccountId, ':certificate/', !Ref ALBCertificateID]]
+      SslPolicy: 'ELBSecurityPolicy-TLS13-1-2-Res-2021-06'
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref 'TargetGroupECSGui'
+      LoadBalancerArn: !Ref 'ALBECS'
+      Port: 443
+      Protocol: HTTPS
+
+  # Path is /api/* => Forward to sam-model
+  ECSALBModelListenerRuleDefaultForwarding:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref 'TargetGroupEcsModel'
+      Conditions:
+        - Field: path-pattern
+          Values: [/api/*]
+      ListenerArn: !Ref 'ALBECSListener'
+      Priority: 40
+
+  # Define EC2 instances that will be used for ECS
+  LaunchTemplateECS:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref 'AMIID'
+        SecurityGroupIds: [ !GetAtt SecurityGroupECS.GroupId ]
+        InstanceType: !Ref 'InstanceTypeECS'
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            # Rolling update automatically triggered by pipleline - e00f886c
+            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+            echo ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE=true >> /etc/ecs/ecs.config
+            yum install -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroupECS --region ${AWS::Region}
+
+ # Define an ASG for the Application EC2 Instance
+  AutoScalingGroupECS:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: [!Ref 'ApplicationSubnetIdEuCe1a', !Ref 'ApplicationSubnetIdEuCe1b']
+      LaunchTemplate:
+        LaunchTemplateId: !Ref 'LaunchTemplateECS'
+        Version: !GetAtt LaunchTemplateECS.LatestVersionNumber
+      MinSize: !Ref 'ASGMinSize'
+      MaxSize: !Ref 'ASGMaxSize'
+      DesiredCapacity: !Ref 'ASGDesiredCapacity'
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: true
+          Value: !Join ['-', [!Ref 'EnvType', 'sam']]
+        - Key: Schedule
+          PropagateAtLaunch: true
+          Value: 'DTIT:custom-mon-fri-7to12'
+        - Key: dtit:sec:InfoSecClass
+          PropagateAtLaunch: true
+          Value: 'Internal'
+        - Key: dtit:sec:NetworkLayer
+          PropagateAtLaunch: true
+          Value: 'application'
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 1
+        MinInstancesInService: !Ref 'ASGMinSize'
+        PauseTime: PT15M
+        WaitOnResourceSignals: true
+
+  # PostgreSQL Database Subnet Group
+  PSQLSubnetsGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group in which the PSQL DB is launched
+      SubnetIds: [!Ref 'DatabaseSubnetIdEuCe1a', !Ref 'DatabaseSubnetIdEuCe1b', !Ref 'DatabaseSubnetIdEuCe1c']
+      Tags:
+        - Key: Name
+          Value: Subnet Group for DB
+
+Outputs:
+  # ALB DNS
+  ALBECS:
+    Description: Application ALB DNS URL
+    Value: !Join ['', [!GetAtt [ALBECS, DNSName]]]
+
